@@ -1,0 +1,5 @@
+yt-dlp
+pillow
+requests
+plyer
+ffmpeg-python

@@ -12,35 +12,36 @@ from io import BytesIO
 from plyer import notification
 import ffmpeg
 from datetime import datetime
+import webbrowser
 
-# Configuração do caminho de destino e histórico de downloads
-config_file = 'config.json'
-history_file = 'history.json'
-translations_file = 'translations.json'
+# Configuration for destination path and download history
+config_file = os.path.join('src', 'config.json')
+history_file = os.path.join('src', 'history.json')
+translations_file = os.path.join('src', 'translations.json')
 
 def load_config():
-    if os.path.exists(os.path.join(os.getcwd(), config_file)):
-        with open(os.path.join(os.getcwd(), config_file), 'r', encoding='utf-8') as file:
+    if os.path.exists(config_file):
+        with open(config_file, 'r', encoding='utf-8') as file:
             return json.load(file)
     return {'destination': '', 'language': 'en'}
 
 def save_config(config):
-    with open(os.path.join(os.getcwd(), config_file), 'w', encoding='utf-8') as file:
+    with open(config_file, 'w', encoding='utf-8') as file:
         json.dump(config, file, ensure_ascii=False, indent=4)
 
 def load_history():
-    if os.path.exists(os.path.join(os.getcwd(), history_file)):
-        with open(os.path.join(os.getcwd(), history_file), 'r', encoding='utf-8') as file:
+    if os.path.exists(history_file):
+        with open(history_file, 'r', encoding='utf-8') as file:
             return json.load(file)
     return []
 
 def save_history(history):
-    with open(os.path.join(os.getcwd(), history_file), 'w', encoding='utf-8') as file:
+    with open(history_file, 'w', encoding='utf-8') as file:
         json.dump(history, file, ensure_ascii=False, indent=4)
 
 def load_translations():
-    if os.path.exists(os.path.join(os.getcwd(), translations_file)):
-        with open(os.path.join(os.getcwd(), translations_file), 'r', encoding='utf-8') as file:
+    if os.path.exists(translations_file):
+        with open(translations_file, 'r', encoding='utf-8') as file:
             return json.load(file)
     raise FileNotFoundError(f"Translations file '{translations_file}' not found.")
 
@@ -52,11 +53,11 @@ download_running = False
 video_info_fetched = False
 current_language = config.get('language', 'en')
 
-# Função para traduzir texto
+# Function to translate text
 def translate(key):
     return translations[current_language].get(key, key)
 
-# Função para escolher a pasta de destino
+# Function to choose the destination folder
 def choose_directory():
     directory = filedialog.askdirectory()
     if directory:
@@ -64,13 +65,13 @@ def choose_directory():
         config['destination'] = directory
         save_config(config)
 
-# Função para remover códigos de escape ANSI
+# Function to remove ANSI escape codes
 def remove_ansi_escape_sequences(text):
     if isinstance(text, (str, bytes)):
         return re.sub(r'\x1B[@-_][0-?]*[ -/]*[@-~]', '', text)
     return text
 
-# Função para enviar notificações
+# Function to send notifications
 def send_notification(title, message):
     notification.notify(
         title=title,
@@ -78,13 +79,13 @@ def send_notification(title, message):
         timeout=10
     )
 
-# Função para atualizar a barra de progresso
+# Function to update the progress bar
 def update_progress(percent):
     progress_var.set(percent)
     progress_bar['value'] = percent
     root.update_idletasks()
 
-# Função para atualizar as estatísticas do download
+# Function to update download statistics
 def update_stats(d, stage):
     if d['status'] == 'downloading':
         percent_str = remove_ansi_escape_sequences(d['_percent_str']).strip().strip('%')
@@ -128,14 +129,14 @@ def update_stats(d, stage):
         send_notification(translate('error'), translate('download_failed'))
         toggle_button_state()
 
-# Função para validar URL
+# Function to validate URL
 def validate_url(url):
     regex = re.compile(
         r'^(https?://)?(www\.)?(youtube\.com|youtu\.?be)/.+$'
     )
     return re.match(regex, url) is not None
 
-# Função para buscar informações do vídeo
+# Function to fetch video information
 def fetch_video_info():
     global video_info_fetched
     url = url_var.get()
@@ -180,7 +181,7 @@ def fetch_video_info():
         messagebox.showerror(translate('error'), f"{translate('fetch_error')} {e}")
         video_info_fetched = False
 
-# Função para adicionar ao histórico
+# Function to add download to history
 def add_to_history(filename):
     url = url_var.get()
     destination = destination_var.get()
@@ -203,7 +204,7 @@ def add_to_history(filename):
     save_history(history)
     update_history_list()
 
-# Função para baixar o vídeo/áudio
+# Function to download video/audio
 def download():
     global download_running, download_thread, video_info_fetched
     if not video_info_fetched:
@@ -281,19 +282,22 @@ def download():
     stats_var.set(translate('download_status'))
     toggle_button_state()
 
-# Função para converter o formato do arquivo baixado
+# Function to convert downloaded file format
 def convert_format(input_file, output_format):
     output_file = os.path.splitext(input_file)[0] + '.' + output_format
     try:
         stats_var.set(translate('converting'))
-        ffmpeg.input(input_file).output(output_file, vcodec='libx264', crf=23, acodec='aac', strict='experimental').run(overwrite_output=True)
+        if output_format in ['mp3', 'wav']:
+            ffmpeg.input(input_file).output(output_file, **{'q:a': 0, 'map': 'a'}).run(overwrite_output=True)
+        else:
+            ffmpeg.input(input_file).output(output_file, vcodec='libx264', crf=23, acodec='aac', strict='experimental').run(overwrite_output=True)
         stats_var.set(translate('conversion_complete'))
         return output_file
     except ffmpeg.Error as e:
         messagebox.showerror(translate('error'), f"{translate('conversion_error')}: {e}")
         return input_file
 
-# Função para parar o download
+# Function to stop the download
 def stop_download():
     global download_running, download_thread
     if download_running and download_thread is not None:
@@ -303,18 +307,18 @@ def stop_download():
     else:
         messagebox.showinfo(translate('error'), translate('no_download_running'))
 
-# Função para alternar o estado do botão
+# Function to toggle the button state
 def toggle_button_state():
     if download_running:
         download_button.config(text=translate('stop'), command=stop_download, style='TButton')
     else:
         download_button.config(text=translate('download'), command=download, style='Accent.TButton')
 
-# Função para colar o link da área de transferência
+# Function to paste the link from the clipboard
 def paste_link():
     url_var.set(root.clipboard_get())
 
-# Função para abrir o local do arquivo
+# Function to open the file location
 def open_download_location():
     path = destination_var.get()
     if os.path.isdir(path):
@@ -322,11 +326,11 @@ def open_download_location():
     else:
         messagebox.showerror(translate('error'), translate('choose_destination'))
 
-# Função para mostrar o botão de abrir local
+# Function to show the open location button
 def show_open_location_button():
     open_location_button.grid(row=10, column=0, columnspan=3, padx=5, pady=10)
 
-# Função para atualizar a lista de histórico
+# Function to update the history list
 def update_history_list():
     for widget in history_frame.winfo_children():
         widget.destroy()
@@ -338,7 +342,7 @@ def update_history_list():
         Label(history_frame, text=f"{title} ({timestamp})", background='white').grid(row=idx, column=0, sticky='w')
         Button(history_frame, text=translate('open_location'), command=lambda dest=destination: os.startfile(dest), style='TButton').grid(row=idx, column=1, padx=5, pady=5)
 
-# Função para exportar o histórico para CSV ou JSON
+# Function to export history to CSV or JSON
 def export_history(file_format):
     export_path = filedialog.asksaveasfilename(defaultextension=f".{file_format}", filetypes=[(file_format.upper(), f"*.{file_format}")])
     if not export_path:
@@ -356,14 +360,14 @@ def export_history(file_format):
                 writer.writerow([item['title'], item['url'], item['destination'], item['filename'], item['duration'], item['size'], item['timestamp'], item['status']])
     messagebox.showinfo(translate('export_complete'), translate('history_exported'))
 
-# Função para limpar todo o histórico
+# Function to clear the entire history
 def clear_history():
     global history
     history = []
     save_history(history)
     update_history_list()
 
-# Função para mudar o idioma
+# Function to change the language
 def change_language(lang):
     global current_language
     current_language = lang
@@ -371,7 +375,7 @@ def change_language(lang):
     save_config(config)
     update_ui_language()
 
-# Função para atualizar a UI com o idioma selecionado
+# Function to update the UI with the selected language
 def update_ui_language():
     notebook.tab(0, text=translate('download'))
     notebook.tab(1, text=translate('history'))
@@ -386,7 +390,7 @@ def update_ui_language():
     video_audio_label.config(text=translate('video_audio'))
     output_format_label.config(text=translate('output_format'))
 
-# Criação da GUI
+# Create the GUI
 root = tk.Tk()
 root.title("YouTube Downloader")
 
@@ -397,19 +401,20 @@ style.configure('Accent.TButton', background='#00aaff', foreground='white')
 style.configure('TLabel', font=('Roboto', 12))
 style.configure('TEntry', font=('Roboto', 12), padding=5, relief="flat")
 style.configure('TFrame', background='white', padding=10)
+style.configure('green.Horizontal.TProgressbar', troughcolor='white', background='green')
 
 root.configure(bg='#f0f0f0')
 
 notebook = ttk.Notebook(root)
 notebook.pack(padx=10, pady=10, expand=True, fill='both')
 
-# Aba de Download
+# Download tab
 download_tab = Frame(notebook, style='TFrame')
 download_tab.grid_rowconfigure(0, weight=1)
 download_tab.grid_columnconfigure(1, weight=1)
 notebook.add(download_tab, text=translate('download'))
 
-# Variáveis definidas aqui
+# Variables defined here
 url_var = tk.StringVar()
 destination_var = tk.StringVar(value=config['destination'])
 info_var = tk.StringVar()
@@ -417,7 +422,7 @@ stats_var = tk.StringVar()
 format_var = tk.StringVar(value='mp4')
 video_audio_var = tk.StringVar(value='video')
 
-# Campo de URL
+# URL field
 youtube_link_label = Label(download_tab, text=translate('youtube_link'), anchor='w', background='white')
 youtube_link_label.grid(row=0, column=0, padx=5, pady=5, sticky='w')
 url_entry = Entry(download_tab, textvariable=url_var, width=40)
@@ -425,32 +430,32 @@ url_entry.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
 paste_link_button = Button(download_tab, text=translate('paste_link'), command=paste_link, style='TButton')
 paste_link_button.grid(row=0, column=2, padx=5, pady=5)
 
-# Botão para buscar informações do vídeo
+# Button to fetch video information
 fetch_info_button = Button(download_tab, text=translate('fetch_info'), command=fetch_video_info, style='Accent.TButton')
 fetch_info_button.grid(row=1, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
 
-# Label para exibir informações do vídeo
+# Label to display video information
 Label(download_tab, textvariable=info_var, justify="left", background='white').grid(row=2, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
 
-# Label para exibir thumbnail do vídeo
+# Label to display video thumbnail
 thumbnail_label = Label(download_tab, background='white')
 thumbnail_label.grid(row=3, column=0, columnspan=3, padx=5, pady=5, sticky='ew')
 
-# Botão para escolher a pasta de destino
+# Button to choose the destination folder
 download_path_label = Label(download_tab, text=translate('download_path'), anchor='w', background='white')
 download_path_label.grid(row=4, column=0, padx=5, pady=5, sticky='w')
 choose_path_button = Button(download_tab, text=translate('choose_path'), command=choose_directory, style='TButton')
 choose_path_button.grid(row=4, column=1, padx=5, pady=5, sticky='ew')
 Entry(download_tab, textvariable=destination_var, width=30).grid(row=4, column=2, padx=5, pady=5, sticky='ew')
 
-# Campo para selecionar vídeo ou áudio
+# Field to select video or audio
 video_audio_label = Label(download_tab, text=translate('video_audio'), anchor='w', background='white')
 video_audio_label.grid(row=5, column=0, padx=5, pady=5, sticky='w')
 video_audio_options = ttk.Combobox(download_tab, textvariable=video_audio_var, values=['video', 'audio'], state='readonly')
 video_audio_options.grid(row=5, column=1, padx=5, pady=5, sticky='ew')
 video_audio_options.bind("<<ComboboxSelected>>", lambda e: update_format_options())
 
-# Campo para selecionar o formato de saída
+# Field to select the output format
 output_format_label = Label(download_tab, text=translate('output_format'), anchor='w', background='white')
 output_format_label.grid(row=6, column=0, padx=5, pady=5, sticky='w')
 format_options = ttk.Combobox(download_tab, textvariable=format_var, values=['mp4', 'mkv', 'avi'], state='readonly')
@@ -464,27 +469,27 @@ def update_format_options():
         format_options.config(values=['mp3', 'wav'])
         format_var.set('mp3')
 
-# Botão para iniciar/parar o download
+# Button to start/stop download
 download_button = Button(download_tab, text=translate('download'), command=download, style='Accent.TButton')
 download_button.grid(row=7, column=0, columnspan=3, padx=5, pady=10, sticky='ew')
 
-# Barra de progresso
+# Progress bar
 progress_var = tk.DoubleVar()
-progress_bar = Progressbar(download_tab, variable=progress_var, maximum=100)
+progress_bar = Progressbar(download_tab, variable=progress_var, maximum=100, style="green.Horizontal.TProgressbar")
 progress_bar.grid(row=8, column=0, columnspan=3, padx=5, pady=10, sticky='ew')
 
-# Campo de estatísticas
+# Status field
 Label(download_tab, textvariable=stats_var, background='white').grid(row=9, column=0, columnspan=3, padx=5, pady=10, sticky='ew')
 
-# Botão para abrir o local do arquivo
+# Button to open the file location
 open_location_button = Button(download_tab, text=translate('open_location'), command=open_download_location, style='Accent.TButton')
 open_location_button.grid_remove()  # Hide by default
 
-# Aba de Histórico
+# History tab
 history_tab = Frame(notebook, style='TFrame')
 notebook.add(history_tab, text=translate('history'))
 
-# Frame para lista de histórico com scrollbar
+# Frame for history list with scrollbar
 history_canvas = tk.Canvas(history_tab, background='white')
 history_frame = Frame(history_canvas, style='TFrame')
 scrollbar = ttk.Scrollbar(history_tab, orient="vertical", command=history_canvas.yview)
@@ -499,27 +504,41 @@ def on_frame_configure(canvas):
 
 history_frame.bind("<Configure>", lambda e: on_frame_configure(history_canvas))
 
-# Botão para limpar todo o histórico
+# Button to clear the entire history
 clear_history_button = Button(history_tab, text=translate('clear_history'), command=clear_history, style='Accent.TButton')
 clear_history_button.pack(pady=10)
 
-# Botão para exportar o histórico
+# Button to export the history
 export_history_button = Button(history_tab, text=translate('export_history'), command=lambda: export_history('json'), style='Accent.TButton')
 export_history_button.pack(pady=5)
 
-# Atualiza a lista de histórico na inicialização
+# Update the history list on initialization
 update_history_list()
 
-# Menu de idiomas
+# Function to open the GitHub repository
+def open_github():
+    webbrowser.open("https://github.com/gabireze/youtube-downloader")
+
+# Function to open the PayPal donation page
+def open_donation():
+    webbrowser.open("https://www.paypal.com/donate/?business=S34UMJ23659VY")
+
+# Menu for languages and info
 menubar = tk.Menu(root)
 language_menu = tk.Menu(menubar, tearoff=0)
 language_menu.add_command(label="English", command=lambda: change_language('en'))
 language_menu.add_command(label="Português (Brasil)", command=lambda: change_language('pt'))
 language_menu.add_command(label="Español", command=lambda: change_language('es'))
 menubar.add_cascade(label="Language", menu=language_menu)
+
+info_menu = tk.Menu(menubar, tearoff=0)
+info_menu.add_command(label="GitHub Repository", command=open_github)
+info_menu.add_command(label="Donate", command=open_donation)
+menubar.add_cascade(label="Info", menu=info_menu)
+
 root.config(menu=menubar)
 
-# Atualiza a UI com o idioma inicial
+# Update the UI with the initial language
 update_ui_language()
 
 root.mainloop()
