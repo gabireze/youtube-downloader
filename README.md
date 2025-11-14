@@ -2,6 +2,9 @@
 
 This is a YouTube video downloader application built with Python. It allows you to download videos or audio from YouTube and convert them to different formats.
 
+## GitAds Sponsored
+[![Sponsored by GitAds](https://gitads.dev/v1/ad-serve?source=gabireze/youtube-downloader@github)](https://gitads.dev/v1/ad-track?source=gabireze/youtube-downloader@github)
+
 ## Features
 
 - Download videos from YouTube.
