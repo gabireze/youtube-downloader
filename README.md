@@ -53,3 +53,5 @@ Contributions are welcome! Please follow these steps to contribute:
 ## License
 
 This project is licensed under the ISC License. See the `LICENSE` file for details.
+
+<!-- GitAds-Verify: H5VMGML3D37BPOM3NZV2IGQXE66P4IU6 -->
